@@ -1,0 +1,50 @@
+# Translation file
+
+#
+# Generic
+#
+
+# Module label 'ModuleServicelivraisonName'
+ModuleServicelivraisonName = Servicelivraison
+# Module description 'ModuleServicelivraisonDesc'
+ModuleServicelivraisonDesc = Servicelivraison description
+
+#
+# Admin page
+#
+ServicelivraisonSetup = Servicelivraison setup
+Settings = Settings
+ServicelivraisonSetupPage = Servicelivraison setup page
+NewSection=New section
+SERVICELIVRAISON_MYPARAM1 = My param 1
+SERVICELIVRAISON_MYPARAM1Tooltip = My param 1 tooltip
+SERVICELIVRAISON_MYPARAM2=My param 2
+SERVICELIVRAISON_MYPARAM2Tooltip=My param 2 tooltip
+ServiceLivraison=Service Delivery
+DeliveryStatus=Delivery Status
+Destination=Destination
+Kilometrage=Kilometrage
+TimeOfReceive=Time Since Validation
+NotAvailable=Not available
+AssignTo=Assigned To
+
+
+
+#
+# About page
+#
+About = About
+ServicelivraisonAbout = About Servicelivraison
+ServicelivraisonAboutPage = Servicelivraison about page
+
+#
+# Sample page
+#
+ServicelivraisonArea = Home Servicelivraison
+MyPageName = My page name
+
+#
+# Sample widget
+#
+MyWidget = My widget
+MyWidgetDescription = My widget description

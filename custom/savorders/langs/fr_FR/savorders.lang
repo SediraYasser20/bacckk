@@ -1,0 +1,20 @@
+Module19060010Name=SAV Commandes
+Module19060010Desc=SAV Commande Client / Fournisseur
+
+savordersSetup=Configuration du module SAV Commandes
+
+savorders_itsav=Commande SAV ?
+savorders_status=Statut SAV
+Receiptofbrokenproducts=Réception des produits cassés
+CreateDelivery=Créer une livraison
+ProductReceivedFromCustomer=Réception SAV client
+ProductDeliveredToCustomer=Livrer SAV client 
+ProductEnPanneRecievedFromCustomer=ProductEnPanneRecievedFromCustomer
+
+ProductDeliveredToSupplier=Livrer SAV fournisseur
+ProductReceivedFromSupplier=Réception SAV fournisseur
+
+savorders_history=Historique SAV
+
+OrderSavRecieveProduct=Réception SAV sur produit
+OrderSavDeliveryProduct=Retour SAV sur produit

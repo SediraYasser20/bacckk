@@ -1,0 +1,69 @@
+# Translation file
+
+#
+# Generic
+#
+
+# Module label 'ModuleSavTabName'
+ModuleSavTabName = SavTab
+# Module description 'ModuleSavTabDesc'
+ModuleSavTabDesc = SavTab description
+
+#
+# Admin page
+#
+SavTabSetup = SavTab setup
+Settings = Settings
+SavTabSetupPage = SavTab setup page
+NewSection=New section
+SAVTAB_MYPARAM1 = My param 1
+SAVTAB_MYPARAM1Tooltip = My param 1 tooltip
+SAVTAB_MYPARAM2=My param 2
+SAVTAB_MYPARAM2Tooltip=My param 2 tooltip
+
+
+#
+# About page
+#
+About = About
+SavTabAbout = About SavTab
+SavTabAboutPage = SavTab about page
+
+#
+# Sample page
+#
+SavTabArea = Home SavTab
+MyPageName = My page name
+
+#
+# Sample widget
+#
+MyWidget = My widget
+MyWidgetDescription = My widget description
+# Dolibarr language file - en_US - savtab
+CHARSET=UTF-8
+
+# Module
+Module104000Name=SAV Tab
+Module104000Desc=Adds a SAV tab on the Order card
+
+# Permissions
+Permission104000=Read SAV data
+Permission104001=Create/Edit SAV data
+
+# Translations
+SAV=SAV
+SAVOrder=SAV Order
+SAVStatus=SAV Status
+SAVHistory=SAV History
+SAVInvoice=SAV Invoice
+SelectInvoice=Select Invoice
+NoInvoiceSelected=No invoice selected
+InvoiceNotFound=Invoice not found
+NotGenerated=Not generated
+NoHistoryYet=No history yet
+RecordSaved=Record saved
+NotEnoughPermissions=Not enough permissions
+SAVLinkedInvoice=Linked Invoice
+SAVStatusNotSet=Status not set
+SavTabDashboardPlaceholder=This area can be used for future SAV-related dashboards or reports.

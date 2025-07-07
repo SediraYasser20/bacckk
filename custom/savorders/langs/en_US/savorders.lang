@@ -1,0 +1,58 @@
+Module19060010Name=SAV Orders
+Module19060010Desc=SAV Order Customer / Supplier
+
+savordersSetup=Configuration of the SAV Orders module
+
+savorders_itsav=SAV Order?
+savorders_status=SAV status
+Receiptofbrokenproducts=Receipt of broken products
+CreateDelivery=Create Delivery
+ProductReceivedFromCustomer=Product received from customer
+ProductDeliveredToCustomer=Product delivered to customer
+ProductEnPanneRecievedFromCustomer=ProductEnPanneRecievedFromCustomer
+
+ProductDeliveredToSupplier=Product delivered to supplier
+ProductReceivedFromSupplier=Product received from supplier
+
+savorders_history=SAV History
+
+OrderSavRecieveProduct=SAV receipt on product
+OrderSavDeliveryProduct=SAV return on product
+BatchNotInStock=Batch number %s is not available in stock for the selected warehouse
+ErrorCheckingBatchStock=Error occurred while checking stock for batch number %s
+InsufficientBatchStock=Insufficient stock for batch number %s. Available: %s
+Module19060010Name=SAV Orders
+Module19060010Desc=SAV Order Customer / Supplier
+
+savordersSetup=Configuration of the SAV Orders module
+
+savorders_itsav=SAV Order?
+savorders_status=SAV status
+Receiptofbrokenproducts=Receipt of broken products
+CreateDelivery=Create Delivery
+ProductReceivedFromCustomer=Product received from customer
+ProductDeliveredToCustomer=Product delivered to customer
+ProductEnPanneRecievedFromCustomer=ProductEnPanneRecievedFromCustomer
+
+ProductDeliveredToSupplier=Product delivered to supplier
+ProductReceivedFromSupplier=Product received from supplier
+
+savorders_history=SAV History
+
+OrderSavRecieveProduct=SAV receipt on product
+OrderSavDeliveryProduct=SAV return on product
+BatchNotInStock=Batch number %s is not available in stock for the selected warehouse
+ErrorCheckingBatchStock=Error occurred while checking stock for batch number %s
+InsufficientBatchStock=Insufficient stock for batch number %s. Available: %s
+SAVStatusRefunded=Refunded
+SAVInvoiceLinked=SAV Invoice %s linked.
+InvoiceForReimbursement=Invoice for reimbursement
+SelectInvoiceForReimbursement=Select invoice to reimburse
+ClientReimbursedInvoice=Client reimbursed on invoice %s
+ClientReimbursedInvoice=Client reimbursed on invoice %s
+ClientReimbursedInvoice=Client reimbursed on invoice %s
+ClientReimbursedAmount=Client reimbursed %s
+Reimbursed=Reimbursed
+Reimbursed=Remboursé
+ClientReimbursedAmount=Client remboursé %s
+

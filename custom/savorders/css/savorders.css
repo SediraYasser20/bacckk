@@ -1,0 +1,39 @@
+.savorders_formconfirm{
+	text-align: left;
+}
+a.editfielda[href*="=savorders_status"], tr[class*="_extras_savorders_status"] 
+,a.editfielda[href*="=savorders_history"], tr[class*="_extras_savorders_history"] 
+,a[href*="=edit_extras&attribute=savorders_status"], a[href*="=edit_extras&attribute=savorders_history"] 
+{
+	display: none;
+}
+.savorders.badge-status1 {
+    color: #ffffff !important;
+    background-color: #bc9526 !important;
+}
+.savorders_history_txt 
+, table.liste td[data-key*="savorders_history"]
+{
+    font-size: 12px;
+}
+
+table.liste .savorders_history_txt {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-width: 250px !important;
+}
+.savorders_dateaction {
+    margin: 18px 0 9px;
+}
+
+table.liste span.savorders_history_td {
+    overflow: auto;
+    max-height: 75px;
+    display: block;
+    height: 75px;
+}
+
+#savorders_formconfirm .width300 {
+    width: 300px;
+}
