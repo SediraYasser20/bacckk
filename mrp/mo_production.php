@@ -1254,11 +1254,26 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 				}
 
 				if ($object->status == $object::STATUS_CANCELED || $object->status == $object::STATUS_CANCELLED_NO_STOCK_MOVEMENT) {
-					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_reopen&confirm=yes&token='.$newToken.'">'.$langs->trans("ReOpen").'</a>'."\n";
+					// Check if user is admin or in group 5
+					$canReopen = $user->admin;
+					if (!$canReopen) {
+						$sql_group_check_reopen = "SELECT 1 FROM ".MAIN_DB_PREFIX."usergroup_user WHERE fk_user = ".((int) $user->id)." AND fk_usergroup = 5";
+						$resql_group_check_reopen = $db->query($sql_group_check_reopen);
+						if ($resql_group_check_reopen && $db->num_rows($resql_group_check_reopen) > 0) {
+							$canReopen = true;
+						}
+					}
+
+					if ($canReopen) {
+						print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_reopen&confirm=yes&token='.$newToken.'">'.$langs->trans("ReOpen").'</a>'."\n";
+					} else {
+						print '<a class="butActionRefused classfortooltip" href="#" title="'.dol_escape_htmltag($langs->trans("NotEnoughPermissions")).'">'.$langs->trans("ReOpen").'</a>'."\n";
+					}
 				}
 
 			if ($object->status == $object::STATUS_PRODUCED) {
     if ($user->admin) {
+        // For PRODUCED status, only admin can reopen, as per original logic. Group 5 does not apply here.
         print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=confirm_reopen&token='.$newToken.'">'.$langs->trans('ReOpen').'</a>';
     } else {
         print '<a class="butActionRefused classfortooltip" href="#" title="'.$langs->trans("OnlyAdminCanReopen").'">'.$langs->trans('ReOpen').'</a>';
