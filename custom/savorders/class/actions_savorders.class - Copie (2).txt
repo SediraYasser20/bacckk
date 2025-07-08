@@ -225,13 +225,12 @@ class Actionssavorders
                                     $disablestockchangeforsubproduct = 0
                                 ); 
 
-                           if($result > 0) {
-    $this->addLineHistoryToSavCommande($texttoadd, $novalidaction, $objprod, $batch);
-    $this->updateQuantityTracking($object->id, $objprod->id, $batch, $novalidaction, 1);
-    $oneadded++;
-} else {
-    $error++;
-}
+                                if($result > 0) {
+                                    $this->addLineHistoryToSavCommande($texttoadd, $novalidaction, $objprod, $batch);
+                                    $oneadded++;
+                                } else {
+                                    $error++;
+                                }
                             }
                         }
                         if ($error) break; 
@@ -253,13 +252,12 @@ class Actionssavorders
                                 $disablestockchangeforsubproduct = 0
                             ); 
 
-                      if($result > 0) {
-    $this->addLineHistoryToSavCommande($texttoadd, $novalidaction, $objprod);
-    $this->updateQuantityTracking($object->id, $objprod->id, '', $novalidaction, $qty);
-    $oneadded++;
-} else {
-    $error++;
-}
+                            if($result > 0) {
+                                $this->addLineHistoryToSavCommande($texttoadd, $novalidaction, $objprod);
+                                $oneadded++;
+                            } else {
+                                $error++;
+                            }
                         } else { 
                              $this->addLineHistoryToSavCommande($texttoadd, $novalidaction, $objprod); 
                              $oneadded++; 
@@ -271,24 +269,15 @@ class Actionssavorders
 
             if(!$error && $oneadded) {
 
-             if($object->element == 'order_supplier') {
-    $savorders_status = ($novalidaction == 'deliveredtosupplier') ? $savorders::DELIVERED_SUPPLIER : $savorders::RECEIVED_SUPPLIER;
-} else {
-    if ($novalidaction == 'process_reimbursement') {
-        $savorders_status = $savorders::REIMBURSED;
-    } else {
-        if ($novalidaction == 'receiptofproduct') {
-            $savorders_status = $savorders::RECIEVED_CUSTOMER;
-        } else {
-            // For delivery, only set to DELIVERED_CUSTOMER if all quantities match
-            if ($this->checkAllQuantitiesDelivered($object->id)) {
-                $savorders_status = $savorders::DELIVERED_CUSTOMER;
-            } else {
-                $savorders_status = $savorders::RECIEVED_CUSTOMER; // Keep at received status
-            }
-        }
-    }
-}
+                if($object->element == 'order_supplier') {
+                    $savorders_status = ($novalidaction == 'deliveredtosupplier') ? $savorders::DELIVERED_SUPPLIER : $savorders::RECEIVED_SUPPLIER;
+                } else {
+                    if ($novalidaction == 'process_reimbursement') {
+                        $savorders_status = $savorders::REIMBURSED;
+                    } else {
+                        $savorders_status = ($novalidaction == 'receiptofproduct') ? $savorders::RECIEVED_CUSTOMER : $savorders::DELIVERED_CUSTOMER;
+                    }
+                }
 
                 $texttoadd = str_replace(['<span class="savorders_history_td">', '</span>'], ' ', $texttoadd);
 
@@ -518,14 +507,7 @@ class Actionssavorders
                             $maxqty = ($hasbatch) ? 'max="'.$object->lines[$i]->qty.'"' : ''; 
 
                             print '<td class="left ">';
-                            // Get available quantity for delivery
-$availableQty = $qty;
-if ($action == 'createdelivery') {
-    $availableQty = $this->getAvailableDeliveryQuantity($object->id, $tmid, $hasbatch);
-    $maxqty = 'max="'.$availableQty.'"';
-}
-
-print '<input type="number" class="flat width50 savorder-qty-input" name="savorders_data['.$tmid.'][qty]" value="'.min($qty, $availableQty).'" '.$maxqty.' min="0" step="any" data-product-id="'.$tmid.'" />';
+                            print '<input type="number" class="flat width50 savorder-qty-input" name="savorders_data['.$tmid.'][qty]" value="'.$qty.'" '.$maxqty.' min="0" step="any" data-product-id="'.$tmid.'" />';
                             print '</td>';
 
                             if($action == 'createdelivery' || $action == 'receivedfromsupplier') {
@@ -627,11 +609,6 @@ print '<input type="number" class="flat width50 savorder-qty-input" name="savord
             }
 
             if($savorders_sav && $nblines > 0) {
-				if($savorders_sav && $nblines > 0) {
-    // Initialize quantity tracking for existing orders
-    if ($savorders_status == savorders::RECIEVED_CUSTOMER) {
-        $this->initializeQuantityTracking($object->id);
-    }
                 print '<div class="inline-block divButAction">';
                 if($object->element == 'order_supplier') {
                     if(empty($savorders_status)) {
@@ -657,7 +634,6 @@ print '<input type="number" class="flat width50 savorder-qty-input" name="savord
                     }
                 }
                 print '</div>';
-				
             }
         }
         return 0;
@@ -690,126 +666,5 @@ print '<input type="number" class="flat width50 savorder-qty-input" name="savord
         }
         return 0;
     }
-	private function updateQuantityTracking($orderId, $productId, $batch, $action, $qty)
-{
-    global $db;
-    
-    $batch = $batch ?: '';
-    
-    // Check if record exists
-    $sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "savorders_quantities 
-            WHERE fk_order = " . (int)$orderId . " 
-            AND fk_product = " . (int)$productId . " 
-            AND batch = '" . $db->escape($batch) . "'";
-    
-    $resql = $db->query($sql);
-    if ($resql && $db->num_rows($resql) > 0) {
-        $obj = $db->fetch_object($resql);
-        $rowid = $obj->rowid;
-        
-        // Update existing record
-        if ($action == 'receiptofproduct') {
-            $sql = "UPDATE " . MAIN_DB_PREFIX . "savorders_quantities 
-                    SET qty_received = qty_received + " . (float)$qty . " 
-                    WHERE rowid = " . (int)$rowid;
-        } else if ($action == 'createdelivery') {
-            $sql = "UPDATE " . MAIN_DB_PREFIX . "savorders_quantities 
-                    SET qty_delivered = qty_delivered + " . (float)$qty . " 
-                    WHERE rowid = " . (int)$rowid;
-        }
-    } else {
-        // Insert new record
-        $qtyReceived = ($action == 'receiptofproduct') ? $qty : 0;
-        $qtyDelivered = ($action == 'createdelivery') ? $qty : 0;
-        
-        $sql = "INSERT INTO " . MAIN_DB_PREFIX . "savorders_quantities 
-                (fk_order, fk_product, batch, qty_received, qty_delivered) 
-                VALUES (" . (int)$orderId . ", " . (int)$productId . ", '" . $db->escape($batch) . "', " . (float)$qtyReceived . ", " . (float)$qtyDelivered . ")";
-    }
-    
-    $db->query($sql);
-}
-
-private function checkAllQuantitiesDelivered($orderId)
-{
-    global $db;
-    
-    $sql = "SELECT COUNT(*) as total_products,
-                   SUM(CASE WHEN qty_received <= qty_delivered THEN 1 ELSE 0 END) as delivered_products
-            FROM " . MAIN_DB_PREFIX . "savorders_quantities 
-            WHERE fk_order = " . (int)$orderId;
-    
-    $resql = $db->query($sql);
-    if ($resql) {
-        $obj = $db->fetch_object($resql);
-        return ($obj->total_products > 0 && $obj->total_products == $obj->delivered_products);
-    }
-    
-    return false;
-}
-private function getAvailableDeliveryQuantity($orderId, $productId, $hasbatch = false)
-{
-    global $db;
-    
-    // First check if we have tracking data
-    $sql = "SELECT SUM(qty_received - qty_delivered) as available_qty
-            FROM " . MAIN_DB_PREFIX . "savorders_quantities 
-            WHERE fk_order = " . (int)$orderId . " 
-            AND fk_product = " . (int)$productId;
-    
-    if (!$hasbatch) {
-        $sql .= " AND batch = ''";
-    }
-    
-    $resql = $db->query($sql);
-    if ($resql && $db->num_rows($resql) > 0) {
-        $obj = $db->fetch_object($resql);
-        if ($obj->available_qty !== null) {
-            return max(0, (float)$obj->available_qty);
-        }
-    }
-    
-    // If no tracking data exists, get the original order quantity
-    // This handles cases where the order was created before implementing quantity tracking
-    $sql = "SELECT qty FROM " . MAIN_DB_PREFIX . "commandedet 
-            WHERE fk_commande = " . (int)$orderId . " 
-            AND fk_product = " . (int)$productId;
-    
-    $resql = $db->query($sql);
-    if ($resql && $db->num_rows($resql) > 0) {
-        $obj = $db->fetch_object($resql);
-        return (float)$obj->qty;
-    }
-    
-    return 0;
-}
-private function initializeQuantityTracking($orderId)
-{
-    global $db;
-    
-    // Check if already initialized
-    $sql = "SELECT COUNT(*) as cnt FROM " . MAIN_DB_PREFIX . "savorders_quantities WHERE fk_order = " . (int)$orderId;
-    $resql = $db->query($sql);
-    if ($resql) {
-        $obj = $db->fetch_object($resql);
-        if ($obj->cnt > 0) {
-            return; // Already initialized
-        }
-    }
-    
-    // Get order lines
-    $sql = "SELECT fk_product, qty FROM " . MAIN_DB_PREFIX . "commandedet WHERE fk_commande = " . (int)$orderId;
-    $resql = $db->query($sql);
-    
-    if ($resql) {
-        while ($obj = $db->fetch_object($resql)) {
-            // Initialize with received quantity (assuming all were received if status is RECIEVED_CUSTOMER)
-            $sql_insert = "INSERT INTO " . MAIN_DB_PREFIX . "savorders_quantities 
-                          (fk_order, fk_product, batch, qty_received, qty_delivered) 
-                          VALUES (" . (int)$orderId . ", " . (int)$obj->fk_product . ", '', " . (float)$obj->qty . ", 0)";
-            $db->query($sql_insert);
-        }
-    }
-}
 }
 

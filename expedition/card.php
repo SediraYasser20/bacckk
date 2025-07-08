@@ -5,15 +5,15 @@
  * Copyright (C) 2005-2012	Regis Houssin			<regis.houssin@inodbox.com>
  * Copyright (C) 2011-2017	Juanjo Menent			<jmenent@2byte.es>
  * Copyright (C) 2013       Florian Henry		  	<florian.henry@open-concept.pro>
- * Copyright (C) 2013       Marcos GarcÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­a           <marcosgdf@gmail.com>
+ * Copyright (C) 2013       Marcos GarcÃƒÆ’Ã‚Â­a           <marcosgdf@gmail.com>
  * Copyright (C) 2014		Cedric GROSS			<c.gross@kreiz-it.fr>
  * Copyright (C) 2014-2017	Francis Appels			<francis.appels@yahoo.com>
  * Copyright (C) 2015		Claudio Aschieri		<c.aschieri@19.coop>
  * Copyright (C) 2016-2018	Ferran Marcet			<fmarcet@2byte.es>
- * Copyright (C) 2016		Yasser CarreÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n			<yacasia@gmail.com>
- * Copyright (C) 2018-2024  FrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©dÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©ric France         <frederic.france@free.fr>
+ * Copyright (C) 2016		Yasser CarreÃƒÆ’Ã‚Â³n			<yacasia@gmail.com>
+ * Copyright (C) 2018-2024  FrÃƒÆ’Ã‚Â©dÃƒÆ’Ã‚Â©ric France         <frederic.france@free.fr>
  * Copyright (C) 2020       Lenin Rivas         	<lenin@leninrivas.com>
- * Copyright (C) 2022       Josep LluÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­s Amador      <joseplluis@lliuretic.cat>
+ * Copyright (C) 2022       Josep LluÃƒÆ’Ã‚Â­s Amador      <joseplluis@lliuretic.cat>
  * Copyright (C) 2024		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -754,242 +754,263 @@ $fk_product_for_add = $is_mo_line_for_add ? 483 : $current_order_line_for_add->f
 				$model = $object->model_pdf;
 				$ret = $object->fetch($id); // Reload to get new records
 
-$result_pdf = $object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
-if ($result_pdf < 0) {
-    dol_print_error($db, $object->error, $object->errors);
-
+				$result_pdf = $object->generateDocument($model, $outputlangs, $hidedetails, $hidedesc, $hideref);
+				if ($result_pdf < 0) {
+					// Set a flag or directly output error, but avoid dol_print_error if we intend to redirect later
+					// For now, we'll let normal error display happen and skip email/redirect if PDF fails this way.
+					// The key is that dol_print_error sends output, so we must not redirect if it was called.
+					// We can introduce a flag if more fine-grained control is needed.
+					// However, if generateDocument calls dol_print_error internally, this check here is too late.
+					// A better approach is to ensure generateDocument itself doesn't call dol_print_error OR
+					// check a flag that generateDocument might set.
+					// For now, let's assume if $result_pdf < 0, an error message was set via setEventMessages by generateDocument
+					// and we should not proceed with auto-emailing or redirecting in that specific case.
+					$pdf_generation_failed_critically = true; // Assume this if we want to prevent redirect
+					dol_print_error($db, $object->error, $object->errors); // This IS THE PROBLEM if it outputs before header
+				}
 			}
 
-// Automatically send email after validation if PDF was generated successfully (or auto-update is disabled)
-if ((!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE') && isset($result_pdf) && $result_pdf >= 0) || getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
-    dol_syslog("Auto-email TRY_BLOCK: Attempting automatic email sending for shipment ID: ".$object->id, LOG_DEBUG);
-    try {
-        dol_syslog("Auto-email: Starting automatic email sending process for shipment ID: ".$object->id, LOG_DEBUG);
+			// Automatically send email after validation
+			// Condition: PDF generation must not have critically failed (by outputting with dol_print_error)
+			// OR PDF auto-update is disabled (meaning we try to use existing PDF or send without)
+			$can_proceed_with_email_and_redirect = true;
+			if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE') && isset($result_pdf) && $result_pdf < 0) {
+				// If PDF autoupdate is ON, and PDF generation failed AND called dol_print_error (implicitly assumed for now)
+				// We should not proceed if dol_print_error was called.
+				// This simple check might not be enough if generateDocument has complex error reporting.
+				// For now, we assume if result_pdf < 0, error messages are set, and we might have output.
+				// To be safer, we'd need generateDocument to return a clear status or avoid dol_print_error.
+				// Let's assume for now that if $result_pdf < 0, we don't want to auto-email or redirect.
+				$can_proceed_with_email_and_redirect = false;
+				dol_syslog("Auto-email: PDF generation failed (result_pdf < 0), skipping auto-email and redirect.", LOG_WARNING);
+			}
 
-        if (!class_exists('CMailFile')) require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
-        if (!function_exists('dol_most_recent_file')) require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+			if ($can_proceed_with_email_and_redirect) {
+				dol_syslog("Auto-email TRY_BLOCK: Attempting automatic email sending for shipment ID: ".$object->id, LOG_DEBUG);
+				try {
+					dol_syslog("Auto-email: Starting automatic email sending process for shipment ID: ".$object->id, LOG_DEBUG);
 
-        // Ensure $outputlangs is initialized
-        dol_syslog("Auto-email: Checking outputlangs. Current state: ".(is_object($outputlangs) ? get_class($outputlangs) : gettype($outputlangs)), LOG_DEBUG);
-        if (empty($outputlangs) || !is_object($outputlangs)) {
-            dol_syslog("Auto-email: outputlangs is empty or not an object. Initializing.", LOG_DEBUG);
-            $outputlangs = $langs; 
-            if (getDolGlobalInt('MAIN_MULTILANGS') && is_object($object->thirdparty) && !empty($object->thirdparty->default_lang)) {
-                $newlang_auto = $object->thirdparty->default_lang;
-                dol_syslog("Auto-email: Thirdparty has default_lang: ".$newlang_auto, LOG_DEBUG);
-                $outputlangs_auto_temp = new Translate("", $conf);
-                $outputlangs_auto_temp->setDefaultLang($newlang_auto);
-                $outputlangs_auto_temp->loadLangs(array("main", "sendings", "other", "commercial"));
-                $outputlangs = $outputlangs_auto_temp;
-                dol_syslog("Auto-email: Switched outputlangs to thirdparty default: ".$newlang_auto, LOG_DEBUG);
-            } else {
-                dol_syslog("Auto-email: Using global langs object for outputlangs.", LOG_DEBUG);
-            }
-        } else {
-            dol_syslog("Auto-email: outputlangs was already initialized.", LOG_DEBUG);
-        }
-        
-        dol_syslog("Auto-email: Determining recipient.", LOG_DEBUG);
-        $sendto_auto = '';
-        if (is_object($object->thirdparty) && $object->thirdparty->id > 0) {
-            dol_syslog("Auto-email: thirdparty object is valid (ID: ".$object->thirdparty->id."). Email: ".($object->thirdparty->email ?? 'empty'), LOG_DEBUG);
-            if (!empty($object->thirdparty->email)) {
-                $sendto_auto = $object->thirdparty->email;
-            } else {
-                $contacts = $object->thirdparty->liste_contact(-1, 'external', 1);
-                if (is_array($contacts) && count($contacts) > 0 && !empty($contacts[0]['email'])) {
-                    $sendto_auto = $contacts[0]['email'];
-                    dol_syslog("Auto-email: Using contact email: ".$sendto_auto, LOG_DEBUG);
-                } else {
-                    dol_syslog("Auto-email: No thirdparty email and no contact email found.", LOG_WARNING);
-                }
-            }
-        } else {
-            dol_syslog("Auto-email: \$object->thirdparty is not valid or has no ID. Shipment ID: ".$object->id, LOG_WARNING);
-        }
-        dol_syslog("Auto-email: Recipient determined as: '".$sendto_auto."'", LOG_DEBUG);
+					if (!class_exists('CMailFile')) require_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+					if (!function_exists('dol_most_recent_file')) require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
-        if (!empty($sendto_auto)) {
-            dol_syslog("Auto-email: Determining sender.", LOG_DEBUG);
-            $from_auto_name = dol_string_nospecial($conf->global->MAIN_INFO_SOCIETE_NOM ?? 'Your Company', ' ', array(","));
-            $from_auto_email = getDolGlobalString('MAIN_INFO_SOCIETE_MAIL');
-            if (empty($from_auto_email)) {
-                if (is_object($user) && !empty($user->email)) {
-                    $from_auto_name = dol_string_nospecial($user->getFullName($langs), ' ', array(","));
-                    $from_auto_email = $user->email;
-                    dol_syslog("Auto-email: Using user email as sender: ".$from_auto_email, LODol_document_rootG_DEBUG);
-                } else {
-                    dol_syslog("Auto-email: CRITICAL - No company or user email for sender.", LOG_ERR);
-                    setEventMessages($langs->trans("ErrorNoSenderEmailConfigured"), null, 'errors');
-                    goto after_auto_email_logic;
-                }
-            } else {
-                dol_syslog("Auto-email: Using company email as sender: ".$from_auto_email, LOG_DEBUG);
-            }
-            $from_auto = $from_auto_name.' <'.$from_auto_email.'>';
+					// Ensure $outputlangs is initialized
+					dol_syslog("Auto-email: Checking outputlangs. Current state: ".(is_object($outputlangs) ? get_class($outputlangs) : gettype($outputlangs)), LOG_DEBUG);
+					if (empty($outputlangs) || !is_object($outputlangs)) {
+						dol_syslog("Auto-email: outputlangs is empty or not an object. Initializing.", LOG_DEBUG);
+						$outputlangs = $langs; 
+						if (getDolGlobalInt('MAIN_MULTILANGS') && is_object($object->thirdparty) && !empty($object->thirdparty->default_lang)) {
+							$newlang_auto = $object->thirdparty->default_lang;
+							dol_syslog("Auto-email: Thirdparty has default_lang: ".$newlang_auto, LOG_DEBUG);
+							$outputlangs_auto_temp = new Translate("", $conf);
+							$outputlangs_auto_temp->setDefaultLang($newlang_auto);
+							$outputlangs_auto_temp->loadLangs(array("main", "sendings", "other", "commercial"));
+							$outputlangs = $outputlangs_auto_temp;
+							dol_syslog("Auto-email: Switched outputlangs to thirdparty default: ".$newlang_auto, LOG_DEBUG);
+						} else {
+							dol_syslog("Auto-email: Using global langs object for outputlangs.", LOG_DEBUG);
+						}
+					} else {
+						dol_syslog("Auto-email: outputlangs was already initialized.", LOG_DEBUG);
+					}
+					
+					dol_syslog("Auto-email: Determining recipient.", LOG_DEBUG);
+					$sendto_auto = '';
+					if (is_object($object->thirdparty) && $object->thirdparty->id > 0) {
+						dol_syslog("Auto-email: thirdparty object is valid (ID: ".$object->thirdparty->id."). Email: ".($object->thirdparty->email ?? 'empty'), LOG_DEBUG);
+						if (!empty($object->thirdparty->email)) {
+							$sendto_auto = $object->thirdparty->email;
+						} else {
+							$contacts = $object->thirdparty->liste_contact(-1, 'external', 1);
+							if (is_array($contacts) && count($contacts) > 0 && !empty($contacts[0]['email'])) {
+								$sendto_auto = $contacts[0]['email'];
+								dol_syslog("Auto-email: Using contact email: ".$sendto_auto, LOG_DEBUG);
+							} else {
+								dol_syslog("Auto-email: No thirdparty email and no contact email found.", LOG_WARNING);
+							}
+						}
+					} else {
+						dol_syslog("Auto-email: \$object->thirdparty is not valid or has no ID. Shipment ID: ".$object->id, LOG_WARNING);
+					}
+					dol_syslog("Auto-email: Recipient determined as: '".$sendto_auto."'", LOG_DEBUG);
 
-            dol_syslog("Auto-email: Determining subject.", LOG_DEBUG);
-            $thirdparty_name_for_subject = (is_object($object->thirdparty) && $object->thirdparty->id > 0 && !empty($object->thirdparty->name)) ? $object->thirdparty->name : $langs->transnoentities("UnknownThirdparty");
-            $subject_auto = $outputlangs->transnoentities("SendShippingRef", $object->ref, $thirdparty_name_for_subject);
-            if (!empty($object->ref_customer)) {
-                $subject_auto = $outputlangs->transnoentities("SendShippingRefWithCustRef", $object->ref, $object->ref_customer, $thirdparty_name_for_subject);
-            }
-            dol_syslog("Auto-email: Subject: ".$subject_auto, LOG_DEBUG);
+					if (!empty($sendto_auto)) {
+						dol_syslog("Auto-email: Determining sender.", LOG_DEBUG);
+						$from_auto_name = dol_string_nospecial($conf->global->MAIN_INFO_SOCIETE_NOM ?? 'Your Company', ' ', array(","));
+						$from_auto_email = getDolGlobalString('MAIN_INFO_SOCIETE_MAIL');
+						if (empty($from_auto_email)) {
+							if (is_object($user) && !empty($user->email)) {
+								$from_auto_name = dol_string_nospecial($user->getFullName($langs), ' ', array(","));
+								$from_auto_email = $user->email;
+								dol_syslog("Auto-email: Using user email as sender: ".$from_auto_email, LOG_DEBUG);
+							} else {
+								dol_syslog("Auto-email: CRITICAL - No company or user email for sender.", LOG_ERR);
+								setEventMessages($langs->trans("ErrorNoSenderEmailConfigured"), null, 'errors');
+								goto after_auto_email_logic;
+							}
+						} else {
+							dol_syslog("Auto-email: Using company email as sender: ".$from_auto_email, LOG_DEBUG);
+						}
+						$from_auto = $from_auto_name.' <'.$from_auto_email.'>';
 
-            dol_syslog("Auto-email: Preparing message body.", LOG_DEBUG);
-            $substitutionarray_auto = getCommonSubstitutionArray($outputlangs, 0, null, $object);
-            $substitutionarray_auto['__USER_SIGNATURE__'] = (is_object($user) && !empty($user->signature)) ? $user->signature : '';
-            complete_substitutions_array($substitutionarray_auto, $outputlangs, $object, array('mode' => 'formemail'));
-            
-            $default_message_body_key = "EmailBodyShippingValidated";
-            $message_auto_raw = $default_message_body_key; // Initialize with the key itself
+						dol_syslog("Auto-email: Determining subject.", LOG_DEBUG);
+						$thirdparty_name_for_subject = (is_object($object->thirdparty) && $object->thirdparty->id > 0 && !empty($object->thirdparty->name)) ? $object->thirdparty->name : $langs->transnoentities("UnknownThirdparty");
+						$subject_auto = $outputlangs->transnoentities("SendShippingRef", $object->ref, $thirdparty_name_for_subject);
+						if (!empty($object->ref_customer)) {
+							$subject_auto = $outputlangs->transnoentities("SendShippingRefWithCustRef", $object->ref, $object->ref_customer, $thirdparty_name_for_subject);
+						}
+						dol_syslog("Auto-email: Subject: ".$subject_auto, LOG_DEBUG);
 
-            // Defensive checks for $outputlangs
-            if (!is_object($outputlangs) || !method_exists($outputlangs, 'transnoentities') || !method_exists($outputlangs, 'loadLangs')) {
-                dol_syslog("Auto-email: \$outputlangs is not a valid Translate object. Falling back to global \$langs.", LOG_ERR);
-                $outputlangs = $langs; // Fallback to global $langs
-            }
+						dol_syslog("Auto-email: Preparing message body.", LOG_DEBUG);
+						$substitutionarray_auto = getCommonSubstitutionArray($outputlangs, 0, null, $object);
+						$substitutionarray_auto['__USER_SIGNATURE__'] = (is_object($user) && !empty($user->signature)) ? $user->signature : '';
+						complete_substitutions_array($substitutionarray_auto, $outputlangs, $object, array('mode' => 'formemail'));
+						
+						$default_message_body_key = "EmailBodyShippingValidated";
+						$message_auto_raw = $default_message_body_key; // Initialize with the key itself
 
-            // Defensive checks for $langs
-            if (!is_object($langs) || !method_exists($langs, 'transnoentities') || !method_exists($langs, 'loadLangs')) {
-                dol_syslog("Auto-email: Global \$langs object is not a valid Translate object. This is critical.", LOG_ERR);
-                $message_auto_raw = "Dear __THIRDPARTY_NAME__,\n\nPlease find attached your shipment note __REF__.\n\nBest regards,\n__USER_SIGNATURE__";
-                dol_syslog("Auto-email: Using hardcoded message due to invalid lang objects.", LOG_WARNING);
-            } else {
-                // Directly load 'other' for $outputlangs
-                $outputlangs->loadLangs(array('other'));
-                dol_syslog("Auto-email: Called loadLangs('other') for \$outputlangs.", LOG_DEBUG);
-                
-                $message_auto_raw = $outputlangs->transnoentities($default_message_body_key);
+						// Defensive checks for $outputlangs
+						if (!is_object($outputlangs) || !method_exists($outputlangs, 'transnoentities') || !method_exists($outputlangs, 'loadLangs')) {
+							dol_syslog("Auto-email: \$outputlangs is not a valid Translate object. Falling back to global \$langs.", LOG_ERR);
+							$outputlangs = $langs; // Fallback to global $langs
+						}
 
-                if ($message_auto_raw == $default_message_body_key) { // Key not found in $outputlangs
-                    if ($outputlangs !== $langs) {
-                        $langs->loadLangs(array('other'));
-                        dol_syslog("Auto-email: Called loadLangs('other') for global \$langs (fallback).", LOG_DEBUG);
-                    }
-                    $message_auto_raw = $langs->transnoentities($default_message_body_key);
-                }
-            }
+						// Defensive checks for $langs (should always be valid, but good practice)
+						if (!is_object($langs) || !method_exists($langs, 'transnoentities') || !method_exists($langs, 'loadLangs')) {
+							dol_syslog("Auto-email: Global \$langs object is not a valid Translate object. This is critical.", LOG_ERR);
+							$message_auto_raw = "Dear __THIRDPARTY_NAME__,\n\nPlease find attached your shipment note __REF__.\n\nBest regards,\n__USER_SIGNATURE__";
+							dol_syslog("Auto-email: Using hardcoded message due to invalid lang objects.", LOG_WARNING);
+						} else {
+							// Directly load 'other' for $outputlangs, method should be idempotent
+							$outputlangs->loadLangs(array('other'));
+							dol_syslog("Auto-email: Called loadLangs('other') for \$outputlangs.", LOG_DEBUG);
+							
+							$message_auto_raw = $outputlangs->transnoentities($default_message_body_key);
 
-            if ($message_auto_raw == $default_message_body_key) { // Still not found, use hardcoded fallback
-                dol_syslog("Auto-email: Lang key '".$default_message_body_key."' not found. Using hardcoded fallback.", LOG_WARNING);
-                $message_auto_raw = "Dear __THIRDPARTY_NAME__,\n\nPlease find attached your shipment note __REF__.\n\nBest regards,\n__USER_SIGNATURE__";
-            }
-            $message_auto = make_substitutions($message_auto_raw, $substitutionarray_auto);
-            if (method_exists($object, 'makeSubstitution')) {
-                $message_auto = $object->makeSubstitution($message_auto);
-            }
-            $message_auto = nl2br($message_auto);
-            dol_syslog("Auto-email: Message body substitutions complete.", LOG_DEBUG);
+							if ($message_auto_raw == $default_message_body_key) { // Key not found in $outputlangs
+								// Directly load 'other' for global $langs if $outputlangs is different
+								if ($outputlangs !== $langs) {
+									$langs->loadLangs(array('other'));
+									dol_syslog("Auto-email: Called loadLangs('other') for global \$langs (fallback).", LOG_DEBUG);
+								}
+								$message_auto_raw = $langs->transnoentities($default_message_body_key);
+							}
+						}
 
-            dol_syslog("Auto-email: Determining attachments.", LOG_DEBUG);
-            $filepath_auto = array(); $filename_auto = array(); $mimetype_auto = array();
-            $objectref_sanitized = dol_sanitizeFileName($object->ref ?? 'undefined_ref');
-            $diroutput_shipment = ($conf->expedition->dir_output ?? '').'/sending/'.$objectref_sanitized;
-            
-            $file_to_attach_info = array();
-            if (!empty($object->last_main_doc) && is_readable(DOL_DATA_ROOT.'/'.$object->last_main_doc) && is_file(DOL_DATA_ROOT.'/'.$object->last_main_doc)) {
-                $file_to_attach_info['fullname'] = DOL_DATA_ROOT.'/'.$object->last_main_doc;
-                $file_to_attach_info['name'] = basename($object->last_main_doc);
-                dol_syslog("Auto-email: Attachment from last_main_doc: ".$file_to_attach_info['fullname'], LOG_DEBUG);
-            } else {
-                dol_syslog("Auto-email: last_main_doc not valid. Trying dol_most_recent_file in ".$diroutput_shipment, LOG_DEBUG);
-                $file_to_attach_info = dol_most_recent_file($diroutput_shipment, preg_quote($objectref_sanitized, '/').'[^\-]+');
-                if (!empty($file_to_attach_info['fullname'])) {
-                    dol_syslog("Auto-email: Attachment from dol_most_recent_file: ".$file_to_attach_info['fullname'], LOG_DEBUG);
-                } else {
-                    dol_syslog("Auto-email: No attachment found by dol_most_recent_file.", LOG_WARNING);
-                }
-            }
+						if ($message_auto_raw == $default_message_body_key) { // Still not found, use hardcoded fallback
+							dol_syslog("Auto-email: Lang key '".$default_message_body_key."' not found. Using hardcoded fallback.", LOG_WARNING);
+							$message_auto_raw = "Dear __THIRDPARTY_NAME__,\n\nPlease find attached your shipment note __REF__.\n\nBest regards,\n__USER_SIGNATURE__";
+						}
+						$message_auto = make_substitutions($message_auto_raw, $substitutionarray_auto);
+						if (method_exists($object, 'makeSubstitution')) {
+							$message_auto = $object->makeSubstitution($message_auto);
+						}
+						$message_auto = nl2br($message_auto);
+						dol_syslog("Auto-email: Message body substitutions complete.", LOG_DEBUG);
 
-            if (!empty($file_to_attach_info['fullname']) && is_readable($file_to_attach_info['fullname'])) {
-                $filepath_auto[] = $file_to_attach_info['fullname'];
-                $filename_auto[] = $file_to_attach_info['name'];
-                $mimetype_auto[] = dol_mimetype($file_to_attach_info['fullname']);
-                dol_syslog("Auto-email: Attachment added: ".$file_to_attach_info['name'], LOG_DEBUG);
-            } else {
-                dol_syslog("Auto-email: Failed to find/read attachment. Path: ".($file_to_attach_info['fullname'] ?? 'N/A'), LOG_WARNING);
-                setEventMessages($langs->trans("ErrorFailedToFindAttachmentForAutoEmail", $object->ref ?? 'N/A'), null, 'warnings');
-            }
+						dol_syslog("Auto-email: Determining attachments.", LOG_DEBUG);
+						$filepath_auto = array(); $filename_auto = array(); $mimetype_auto = array();
+						$objectref_sanitized = dol_sanitizeFileName($object->ref ?? 'undefined_ref');
+						$diroutput_shipment = ($conf->expedition->dir_output ?? '').'/sending/'.$objectref_sanitized;
+						
+						$file_to_attach_info = array();
+						if (!empty($object->last_main_doc) && is_readable(DOL_DATA_ROOT.'/'.$object->last_main_doc) && is_file(DOL_DATA_ROOT.'/'.$object->last_main_doc)) {
+							$file_to_attach_info['fullname'] = DOL_DATA_ROOT.'/'.$object->last_main_doc;
+							$file_to_attach_info['name'] = basename($object->last_main_doc);
+							dol_syslog("Auto-email: Attachment from last_main_doc: ".$file_to_attach_info['fullname'], LOG_DEBUG);
+						} else {
+							dol_syslog("Auto-email: last_main_doc not valid. Trying dol_most_recent_file in ".$diroutput_shipment, LOG_DEBUG);
+							$file_to_attach_info = dol_most_recent_file($diroutput_shipment, preg_quote($objectref_sanitized, '/').'[^\-]+');
+							if (!empty($file_to_attach_info['fullname'])) {
+								dol_syslog("Auto-email: Attachment from dol_most_recent_file: ".$file_to_attach_info['fullname'], LOG_DEBUG);
+							} else {
+								dol_syslog("Auto-email: No attachment found by dol_most_recent_file.", LOG_WARNING);
+							}
+						}
 
-            $sendtocc_auto = '';
-            $sendtobcc_auto = getDolGlobalString('MAIN_MAIL_AUTOCOPY_SHIPMENT_TO');
-            $deliveryreceipt_auto = getDolGlobalInt('MAIN_MAIL_SEND_DELIVERY_RECEIPT');
+						if (!empty($file_to_attach_info['fullname']) && is_readable($file_to_attach_info['fullname'])) {
+							$filepath_auto[] = $file_to_attach_info['fullname'];
+							$filename_auto[] = $file_to_attach_info['name'];
+							$mimetype_auto[] = dol_mimetype($file_to_attach_info['fullname']);
+							dol_syslog("Auto-email: Attachment added: ".$file_to_attach_info['name'], LOG_DEBUG);
+						} else {
+							dol_syslog("Auto-email: Failed to find/read attachment. Path: ".($file_to_attach_info['fullname'] ?? 'N/A'), LOG_WARNING);
+							setEventMessages($langs->trans("ErrorFailedToFindAttachmentForAutoEmail", $object->ref ?? 'N/A'), null, 'warnings');
+						}
 
-            // Retry logic for sending email
-            $max_retries = getDolGlobalInt('MAIN_MAIL_MAX_RETRIES', 3); // Configurable max retries, default to 3
-            $retry_delay = getDolGlobalInt('MAIN_MAIL_RETRY_DELAY', 5); // Delay between retries in seconds, default to 5
-            $retry_count = 0;
-            $email_sent = false;
+						$sendtocc_auto = '';
+						$sendtobcc_auto = getDolGlobalString('MAIN_MAIL_AUTOCOPY_SHIPMENT_TO');
+						$deliveryreceipt_auto = getDolGlobalInt('MAIN_MAIL_SEND_DELIVERY_RECEIPT');
 
-            while (!$email_sent && $retry_count < $max_retries) {
-                dol_syslog("Auto-email: Attempt ".($retry_count + 1)." of ".$max_retries." to send email for shipment ID: ".$object->id, LOG_DEBUG);
-                
-                $mailfile = new CMailFile($subject_auto, $sendto_auto, $from_auto, $message_auto, $filepath_auto, $mimetype_auto, $filename_auto, $sendtocc_auto, $sendtobcc_auto, $deliveryreceipt_auto);
+						dol_syslog("Auto-email: Creating CMailFile instance.", LOG_DEBUG);
+						$mailfile = new CMailFile($subject_auto, $sendto_auto, $from_auto, $message_auto, $filepath_auto, $mimetype_auto, $filename_auto, $sendtocc_auto, $sendtobcc_auto, $deliveryreceipt_auto);
 
-                dol_syslog("Auto-email: Calling sendfile(). To: ".$sendto_auto.", From: ".$from_auto.", Subject: ".$subject_auto, LOG_DEBUG);
-                if ($mailfile->sendfile()) {
-                    $email_sent = true;
-                    dol_syslog("Auto-email: Successfully sent on attempt ".($retry_count + 1)." for shipment ID: ".$object->id, LOG_INFO);
-                    setEventMessages($langs->trans("MailSuccessfulySent", CMailFile::getValidAddress($from_auto, 2), CMailFile::getValidAddress($sendto_auto, 2)), null, 'mesgs');
-                    
-                    $triggersendname_auto = 'SHIPPING_SENTBYMAIL_AUTO';
-                    $object->sendtoid = array(); 
-                    if (is_object($object->thirdparty) && $object->thirdparty->id > 0) {
-                        $contactlist = $object->thirdparty->getContactIds('external', 'MAIN');
-                        if (!empty($contactlist)) $object->sendtoid = $contactlist;
-                    }
+						dol_syslog("Auto-email: Calling sendfile(). To: ".$sendto_auto.", From: ".$from_auto.", Subject: ".$subject_auto, LOG_DEBUG);
+						if ($mailfile->sendfile()) {
+							dol_syslog("Auto-email: Successfully sent for shipment ID: ".$object->id, LOG_INFO);
+							setEventMessages($langs->trans("MailSuccessfulySent", CMailFile::getValidAddress($from_auto, 2), CMailFile::getValidAddress($sendto_auto, 2)), null, 'mesgs');
+							
+							$triggersendname_auto = 'SHIPPING_SENTBYMAIL_AUTO';
+							$object->sendtoid = array(); 
+							if (is_object($object->thirdparty) && $object->thirdparty->id > 0) {
+                            // Get an array of contact arrays, then extract the ID of the first main one
+                            $contacts_for_id = $object->thirdparty->liste_contact(-1, 'external', 1, null, 0, 'MAIN'); // Fetch 1 main external contact
+                            if (!empty($contacts_for_id) && is_array($contacts_for_id) && isset($contacts_for_id[0]['id'])) {
+                                $object->sendtoid = array($contacts_for_id[0]['id']); // $object->sendtoid expects an array of IDs
+                                dol_syslog("Auto-email: Set sendtoid for trigger to contact ID: ".$contacts_for_id[0]['id'], LOG_DEBUG);
+                            } else {
+                                dol_syslog("Auto-email: No main external contact ID found for thirdparty ID: ".$object->thirdparty->id." to set for sendtoid trigger.", LOG_DEBUG);
+                            }
+							}
 
-                    $object->actiontypecode = 'AC_SHIPMENT_SENT_AUTO';
-                    $object->actionmsg = substr($message_auto, 0, 2000); // Truncate if too long for DB
-                    $object->actionmsg2 = $langs->transnoentities('MailSentByTo', CMailFile::getValidAddress($from_auto, 4, 0, 1), CMailFile::getValidAddress($sendto_auto, 4, 0, 1));
-                    if (getDolGlobalString('MAIN_MAIL_REPLACE_EVENT_TITLE_BY_EMAIL_SUBJECT')) {
-                        $object->actionmsg2 = $subject_auto;
-                    }
-                    $object->trackid = 'shi'.($object->id ?? 'unknownid').'_auto_'.time();
-                    $object->email_from = $from_auto;
-                    $object->email_to = $sendto_auto;
-                    $object->email_subject = $subject_auto;
-                    $object->email_msgid = $mailfile->msgid;
-                    
-                    if (is_object($user)) {
-                        dol_syslog("Auto-email: Calling trigger ".$triggersendname_auto." for user ID: ".$user->id, LOG_DEBUG);
-                        $object->call_trigger($triggersendname_auto, $user);
-                    } else {
-                        dol_syslog("Auto-email: User object not valid, cannot call trigger. Shipment ID: ".$object->id, LOG_ERR);
-                    }
-                } else {
-                    $retry_count++;
-                    $errorMessage = $langs->transnoentities('ErrorFailedToSendMail', dol_escape_htmltag($from_auto), dol_escape_htmltag($sendto_auto));
-                    if (!empty($mailfile->error)) $errorMessage .= '<br>'.$mailfile->error;
-                    if (!empty($mailfile->errors) && is_array($mailfile->errors)) $errorMessage .= '<br>'.implode('<br>', $mailfile->errors);
-                    dol_syslog("Auto-email: Failed to send on attempt ".($retry_count).". Error: ".$errorMessage.". Shipment ID: ".$object->id, LOG_ERR);
-                    if ($retry_count < $max_retries) {
-                        dol_syslog("Auto-email: Retrying after ".$retry_delay." seconds for shipment ID: ".$object->id, LOG_DEBUG);
-                        sleep($retry_delay); // Wait before retrying
-                    } else {
-                        dol_syslog("Auto-email: Max retries (".$max_retries.") reached for shipment ID: ".$object->id, LOG_ERR);
-                        setEventMessages($errorMessage, null, 'errors');
-                    }
-                }
-            }
-        } else {
-            $thirdparty_name_for_error = (is_object($object->thirdparty) && !empty($object->thirdparty->name)) ? $object->thirdparty->name : $langs->transnoentities("UnknownThirdparty");
-            dol_syslog("Auto-email: No recipient email. Thirdparty: ".$thirdparty_name_for_error.". Shipment ID: ".$object->id, LOG_WARNING);
-            setEventMessages($langs->trans("ErrorNoRecipientEmailForAutoSend", $thirdparty_name_for_error), null, 'warnings');
-        }
-    } catch (Throwable $t) {
-        $errorMessage = "ErrorDuringAutomaticEmail: ".$t->getMessage()." in ".$t->getFile()." on line ".$t->getLine();
-        $stackTrace = $t->getTraceAsString();
-        dol_syslog("Auto-email CATCH_BLOCK: Throwable caught during automatic email sending for shipment ID: ".$object->id.". Error: ".$errorMessage, LOG_ERR);
-        dol_syslog("Auto-email CATCH_BLOCK: Stack Trace:\n".$stackTrace, LOG_ERR);
-        setEventMessages($langs->trans("ErrorDuringAutomaticEmail").": ".$t->getMessage(), null, 'errors');
-    }
-    dol_syslog("Auto-email TRY_BLOCK: Finished automatic email sending attempt for shipment ID: ".$object->id, LOG_DEBUG);
-}
-after_auto_email_logic:;
+							$object->actiontypecode = 'AC_SHIPMENT_SENT_AUTO';
+							$object->actionmsg = substr($message_auto, 0, 2000); // Truncate if too long for DB
+							$object->actionmsg2 = $langs->transnoentities('MailSentByTo', CMailFile::getValidAddress($from_auto, 4, 0, 1), CMailFile::getValidAddress($sendto_auto, 4, 0, 1));
+							if (getDolGlobalString('MAIN_MAIL_REPLACE_EVENT_TITLE_BY_EMAIL_SUBJECT')) {
+								$object->actionmsg2 = $subject_auto;
+							}
+							$object->trackid = 'shi'.($object->id ?? 'unknownid').'_auto_'.time();
+							$object->email_from = $from_auto;
+							$object->email_to = $sendto_auto;
+							$object->email_subject = $subject_auto;
+							$object->email_msgid = $mailfile->msgid;
+							
+							if (is_object($user)) {
+								dol_syslog("Auto-email: Calling trigger ".$triggersendname_auto." for user ID: ".$user->id, LOG_DEBUG);
+								$object->call_trigger($triggersendname_auto, $user);
+							} else {
+								dol_syslog("Auto-email: User object not valid, cannot call trigger. Shipment ID: ".$object->id, LOG_ERR);
+							}
+						} else {
+							$errorMessage = $langs->transnoentities('ErrorFailedToSendMail', dol_escape_htmltag($from_auto), dol_escape_htmltag($sendto_auto));
+							if (!empty($mailfile->error)) $errorMessage .= '<br>'.$mailfile->error;
+							if (!empty($mailfile->errors) && is_array($mailfile->errors)) $errorMessage .= '<br>'.implore('<br>', $mailfile->errors);
+							dol_syslog("Auto-email: Failed to send. Error: ".$errorMessage.". Shipment ID: ".$object->id, LOG_ERR);
+							setEventMessages(null, array($errorMessage), 'errors');
+						}
+					} else {
+						$thirdparty_name_for_error = (is_object($object->thirdparty) && !empty($object->thirdparty->name)) ? $object->thirdparty->name : $langs->transnoentities("UnknownThirdparty");
+						dol_syslog("Auto-email: No recipient email. Thirdparty: ".$thirdparty_name_for_error.". Shipment ID: ".$object->id, LOG_WARNING);
+						setEventMessages($langs->trans("ErrorNoRecipientEmailForAutoSend", $thirdparty_name_for_error), null, 'warnings');
+					}
+				} catch (Throwable $t) {
+					$errorMessage = "ErrorDuringAutomaticEmail: ".$t->getMessage()." in ".$t->getFile()." on line ".$t->getLine();
+					$stackTrace = $t->getTraceAsString();
+					dol_syslog("Auto-email CATCH_BLOCK: Throwable caught during automatic email sending for shipment ID: ".$object->id.". Error: ".$errorMessage, LOG_ERR);
+					dol_syslog("Auto-email CATCH_BLOCK: Stack Trace:\n".$stackTrace, LOG_ERR);
+					setEventMessages($langs->trans("ErrorDuringAutomaticEmail").": ".$t->getMessage(), null, 'errors'); // User-facing message remains concise
+				}
+				dol_syslog("Auto-email TRY_BLOCK: Finished automatic email sending attempt for shipment ID: ".$object->id, LOG_DEBUG);
+			}
+			after_auto_email_logic:; 
 
-		
+			// Redirect to the card to show results and prevent re-execution on reload
+			$redirect_url = $_SERVER["PHP_SELF"]."?id=".$object->id;
+			// It might be useful to add a confirmation message key if needed, e.g., by appending '&confmsg=shipmentvalidatedemailed'
+			// setEventMessages will handle specific success/error messages for the email part.
+			// The main "validated" status is usually clear from the card view itself.
+			header("Location: ".$redirect_url);
+			exit;
+		}
 	} elseif ($action == 'confirm_cancel' && $confirm == 'yes' && $user->hasRight('expedition', 'supprimer')) {
 		$also_update_stock = (GETPOST('alsoUpdateStock', 'alpha') ? 1 : 0);
 		$result = $object->cancel(0, $also_update_stock);
@@ -1384,7 +1405,7 @@ $title = $object->ref.' - '.$langs->trans("Shipment");
 if ($action == 'create2') {
 	$title = $langs->trans("CreateShipment");
 }
-$help_url = 'EN:Module_Shipments|FR:Module_ExpÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©ditions|ES:M&oacute;dulo_Expediciones|DE:Modul_Lieferungen';
+$help_url = 'EN:Module_Shipments|FR:Module_ExpÃƒÆ’Ã‚Â©ditions|ES:M&oacute;dulo_Expediciones|DE:Modul_Lieferungen';
 
 llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-expedition page-card');
 
@@ -1806,7 +1827,7 @@ if (
     // Force display of product 483
     $fk_product_to_use_for_display = 483;
 
-    // Extract the MO serial/ref (Costum-PCxxxÃ¢â‚¬Â¦ or OFxxxÃ¢â‚¬Â¦)
+    // Extract the MO serial/ref (Costum-PCxxxâ€¦ or OFxxxâ€¦)
     if (preg_match('/^(Costum-PC\S+|OF\S+)/', trim($line->description), $matches)) {
         $target_mo_serial_ref = $matches[1];
     } else {
@@ -1815,7 +1836,7 @@ if (
             . $line->id 
             . ". Could not extract MO ref from description: '" 
             . $line->description 
-            . "'. Expected pattern like 'Costum-PCxxxx-xxxxÃ¢â‚¬Â¦' or 'OFxxxxxÃ¢â‚¬Â¦'.",
+            . "'. Expected pattern like 'Costum-PCxxxx-xxxxâ€¦' or 'OFxxxxxâ€¦'.",
             LOG_WARNING
         );
     }
@@ -3671,9 +3692,8 @@ if ($user->hasRight('expedition', 'creer') && $object->status > 0) {
 			// Cancel
 			if ($object->status == Expedition::STATUS_VALIDATED) {
 				if ($user->hasRight('expedition', 'creer')) {
-					if ($user->admin) {
 						print dolGetButtonAction('', $langs->trans('Cancel'), 'danger', $_SERVER["PHP_SELF"].'?action=cancel&token='.newToken().'&id='.$object->id.'&mode=init#formmailbeforetitle', '');
-					}
+					
 				}
 			}
 
@@ -3887,7 +3907,6 @@ $(document).ready(function() {
 
 llxFooter();
 $db->close();
-
 
 
 

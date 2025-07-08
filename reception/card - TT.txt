@@ -1167,8 +1167,7 @@ if ($action == 'create') {
 				print '<td class="center">'.$langs->trans("QtyOrdered").'</td>';
 				print '<td class="center">'.$langs->trans("QtyReceived").'</td>';
 				print '<td class="center">'.$langs->trans("QtyToReceive");
-			if (getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION') || getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION_CLOSE'))
- {
+				if ($user->admin && (getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION') || getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION_CLOSE'))) {
 					print '<td>'.$langs->trans("BuyingPrice").'</td>';
 				}
 				if (!isModEnabled('productbatch')) {
@@ -1297,7 +1296,7 @@ if ($action == 'create') {
 
 				// Qty already received
 				print '<td class="center">';
-$quantityDelivered = isset($objectsrc->receptions[$line->id]) ? $objectsrc->receptions[$line->id] : 0;
+				$quantityDelivered = $objectsrc->receptions[$line->id];
 				if (! array_key_exists($line->id, $arrayofpurchaselinealreadyoutput)) {	// Add test to avoid to show qty twice
 					print $quantityDelivered;
 				}
@@ -1336,12 +1335,9 @@ $quantityDelivered = isset($objectsrc->receptions[$line->id]) ? $objectsrc->rece
 					}
 					print '</td>';
 
-					if (getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION') || getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION_CLOSE'))
- {
+					if ($user->admin && (getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION') || getDolGlobalInt('STOCK_CALCULATE_ON_RECEPTION_CLOSE'))) {
 						print '<td>';
-						$readonly = $user->admin ? '' : 'readonly';
-print '<input class="width75 right" name="cost_price'.$indiceAsked.'" id="cost_price'.$indiceAsked.'" value="'.$cost_price.'" '.$readonly.'>';
-
+						print '<input class="width75 right" name="cost_price'.$indiceAsked.'" id="cost_price'.$indiceAsked.'" value="'.$cost_price.'">';
 						print '</td>';
 					}
 
