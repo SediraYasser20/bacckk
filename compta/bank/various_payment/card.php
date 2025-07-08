@@ -49,7 +49,7 @@ if (isModEnabled('project')) {
  */
 
 // Load translation files required by the page
-$langs->loadLangs(array("compta", "banks", "bills", "users", "accountancy", "categories"));
+$langs->loadLangs(array("compta", "banks", "bills", "users", "accountancy", "categories", "main"));
 
 // Get parameters
 $id = GETPOSTINT('id');
@@ -152,6 +152,7 @@ if (empty($reshook)) {
 		$object->category = GETPOST('category', 'alpha');
 		$object->service = GETPOST('service', 'alpha'); // Assuming service ID is stored
 		$object->ressource = GETPOST('ressource', 'alpha'); // Assuming resource ID is stored
+		$fk_user_assignee = GETPOSTINT('fk_user_assignee'); // Retrieve the assigned user ID
 
 		if (empty($datep) || empty($datev)) {
 			$langs->load('errors');
@@ -604,6 +605,11 @@ if ($action == 'create') {
 	// If $ressource_options is empty here, the select will be empty.
 	// Consider if a message should be shown to the user if no options are available.
 	print $form->selectarray('ressource', $ressource_options, GETPOST('ressource'), 0, 0, 0, '', 0, 0, 0, '', 'minwidth300', 1); // Changed 4th param to 0 to reflect no empty val
+	print '</td></tr>';
+
+	// User Assignee
+	print '<tr><td>'.$langs->trans("UserAssignee").'</td><td>';
+	print $form->select_dolusers(GETPOST('fk_user_assignee', 'int'), 'fk_user_assignee', 1, null, 0, '', '', '', 0, 0, '', 0, '', 'minwidth300');
 	print '</td></tr>';
 
 	print '<tr><td colspan="2"><hr></td></tr>';
